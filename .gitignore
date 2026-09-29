@@ -1,0 +1,28 @@
+.gradle/
+build/
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+run/
+
+# ModDevGradle 自动生成的启动配置，内含**本机绝对路径**（且把路径里的 & 转义成 &）
+.vscode/
+
+# 实测产生的运行日志与结果
+server_run.log
+driver.log
+probe_run.log
+probe_result_neoforge.json
+client_run.log
+client_shot.png
+client_shot_real.png
+
+# 本机开发用（另两端也都不入库）
+probe_server.py
+run_e2e.py
+shot_client.py
+list_windows.py
+PLAN.md
+
+# Python
+__pycache__/
+*.pyc

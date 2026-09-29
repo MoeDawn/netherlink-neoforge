@@ -1,0 +1,115 @@
+// NetherLink MC 端 · NeoForge 版
+//
+// ⚠️ 这份构建配置**照抄 NeoForge 官方 MDK 的 26.3 分支**
+// （github.com/neoforgemdks/MDK-26.3-ModDevGradle），不是凭印象写的。
+// Fabric 端的教训：当时按老经验写构建配置连错三次（插件 id / 版本 / mappings）。
+//
+// 三个与 Fabric 端不同的点：
+//
+// 1. **构建插件是 `net.neoforged.moddev`**（ModDevGradle），不是 Loom。
+// 2. **同样不写 `mappings`**——MC 26.1 起不再混淆，NeoForge 也是原版环境。
+// 3. **元数据是 `neoforge.mods.toml`**（TOML），走 `src/main/templates` +
+//    `generateModMetadata` 用 expand 展开 `${...}`；Fabric 是 fabric.mod.json。
+//
+// ⚠️ 与 Paper 端同源的坑：`expand` 的输入**不被 Gradle 算作任务输入**，
+// 所以改了 gradle.properties 的版本号后可能 UP-TO-DATE、**jar 里还是旧版本号**。
+// 改版本号后必须 `clean` 重编。
+//
+// ⚠️ 本机 `maven.neoforged.net` 稳定不可达（TLS 被中止），构建必须带 init script：
+//     gradle --init-script tools/neoforge-mirror.init.gradle build
+// 详见 tools/neoforge-mirror.init.gradle 与 README。
+
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version "${moddev_version}"
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    // ⚠️ 用**项目名**而不是 `mod_id`：三端的产物名统一成 `<仓库名>-<版本>.jar`
+    // （mod_id 是 `netherlink`，拿它命名会得到 `netherlink-0.0.1.jar`，
+    // 与另两端的命名约定不一致，发到 Release 上会让人对不上号）。
+    archivesName = 'netherlink-neoforge'
+}
+
+// Mojang ships Java 25 to end users in 26.3, so mods should target Java 25.
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+
+neoForge {
+    version = project.neo_version
+
+    // 只要服务端——这是一个服务端模组，聊天/进服/死亡/成就都在服务端侧。
+    runs {
+        server {
+            server()
+            programArgument '--nogui'
+        }
+
+        // ⚠️ 客户端 run **只为测试**（模组本身是服务端的，客户端不加载它）。
+        // 目的：让本机起一个**真实客户端**连进开发服，从而能造出
+        // 聊天 / 进服 / 退服 / 死亡 / 成就 这些**必须有真玩家在线**才能触发的事件。
+        // quickPlayMultiplayer 让它启动后自动连本机服务端（online-mode=false，
+        // 名字随便填）。用 `runClient` 起来，再用 RCON 从控制台造 die/成就。
+        client {
+            client()
+            programArguments.addAll '--username', 'FreshProbe',
+                    '--quickPlayMultiplayer', '127.0.0.1:25565'
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+// 元数据展开：把 neoforge.mods.toml 里的占位符换成 gradle.properties 的值。
+//
+// ⚠️⚠️ **模板文件里不许出现任何裸 `$`，注释里也不行。**
+// 只要模板含 `${...}`，Gradle 就不做纯文本替换，而是把整个文件包成一段
+// **Groovy 模板脚本（GString）**去编译；GString 里 `$` **永远是表达式起手**。
+// 于是「在注释里用 `${...}` 举例说明占位符」这种写法本身就把构建弄炸了，
+// 报错还是 `Unexpected input: '(' @ line 1, column 10`——行号指向 Gradle
+// 自己生成的 `out.print(`，**与真正的原因毫无关系**。（实测二分定位到的。）
+//
+// 排查过程中先怀疑过编码（以为是 GBK/UTF-8 问题，因为 Fabric 的 .bat 踩过），
+// 但换成纯 ASCII 后**照样失败**——所以模板保持纯 ASCII 只是顺手的好处，
+// 不是必要条件。真正的判据是那个 `$`。
+//
+// `filteringCharset` 对纯 ASCII 内容是空操作，留着是为将来万一要塞非 ASCII
+// 文案时不必再踩一次「工具链用什么编码读」的坑。
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+    ]
+    inputs.properties replaceProperties
+    from("src/main/templates") {
+        filteringCharset = 'UTF-8'
+        expand replaceProperties
+    }
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    def projectName = project.name
+    inputs.property "projectName", projectName
+    // MIT 要求「在所有副本中包含许可声明」，把仓库根目录的 LICENSE 打进 jar
+    from("LICENSE") {
+        rename { "${it}_$projectName" }
+    }
+}

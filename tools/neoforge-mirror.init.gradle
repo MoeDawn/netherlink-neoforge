@@ -1,0 +1,46 @@
+// 把被封锁的 maven.neoforged.net 重定向到可达的镜像。
+//
+// ⚠️ **本机（d:\eyf\astrbot&mc 的开发机）需要它**：
+//    maven.neoforged.net 被稳定阻断（0.5 秒 RST；三个 IP 都一样），
+//    而 neoforged.forgecdn.net 是它的**完整镜像**——实测 metadata 里有
+//    `26.3.0.23-beta`、pom 内容一致，且用它跑通了完整的 `gradlew build`。
+//
+// 用法：
+//   gradle --init-script tools/neoforge-mirror.init.gradle build
+//   （项目自带的 build.cmd 已经这么调了，无需手动加参数）
+//
+// 什么时候可以**不用**它：如果哪天 maven.neoforged.net 在本机恢复了直连，
+// 去掉 init script 即可（镜像理论上可能滞后于官方）。
+//
+// ⚠️ forgecdn.net 是 CurseForge 的 CDN。NeoForge 通过 CurseForge 分发安装器，
+//    所以这个子域是官方镜像。但**第三方镜像终究不是官方源**——
+//    换机器/做发布时，优先试直连。
+
+def ORIGIN = 'https://maven.neoforged.net'
+def MIRROR = 'https://neoforged.forgecdn.net'
+
+def redirect = { repos ->
+    repos.all { repo ->
+        try {
+            def u = repo.hasProperty('url') ? repo.url.toString() : null
+            if (u != null && u.startsWith(ORIGIN)) {
+                repo.setUrl(u.replace(ORIGIN, MIRROR))
+                println "[neoforge-mirror] ${u}  ->  ${repo.url}"
+            }
+        } catch (Exception e) {
+            println "[neoforge-mirror] 跳过 ${repo}: ${e.message}"
+        }
+    }
+}
+
+// 插件仓库（plugins.gradle.org 那条不走这里，它没被封）
+settingsEvaluated { settings ->
+    redirect(settings.pluginManagement.repositories)
+    redirect(settings.buildscript.repositories)
+}
+
+// 项目仓库 —— neoForge { version = ... } 注入的就是在这里
+allprojects { p ->
+    redirect(p.buildscript.repositories)
+    redirect(p.repositories)
+}

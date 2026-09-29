@@ -1,0 +1,44 @@
+# NetherLink MC side (NeoForge) mod metadata.
+#
+# NOTE 1: the placeholders below (dollar-brace form, e.g. mod_id) are filled
+# from gradle.properties by the generateModMetadata task. Change versions there.
+#
+# NOTE 2: a bare dollar sign is NOT allowed anywhere in this file -- not even in
+# comments. Gradle turns any template containing a placeholder into a Groovy
+# template script (GString), where a dollar sign ALWAYS starts an expression.
+# Writing the literal placeholder syntax inside a comment to explain it is
+# itself enough to break the build: the error points at out.print( on line 1,
+# which is completely misleading.
+#
+# NOTE 3: keep this file pure ASCII as well -- same reason the Fabric .bat
+# files must be, i.e. toolchains on this machine read files with GBK.
+
+license="${mod_license}"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+description='''
+Minecraft server <-> QQ group message bridge (NetherLink MC side, NeoForge).
+Works with the NetherLink plugin on AstrBot. Same wire protocol as the
+Paper/Purpur/Folia and Fabric builds.
+'''
+authors="eyf"
+
+# No [[mixins]] block: the Fabric build needed a mixin to detect advancement
+# grants, but NeoForge has a native AdvancementEarnEvent, so that mixin is gone.
+
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neo_version},)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
