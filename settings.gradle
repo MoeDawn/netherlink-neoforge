@@ -1,0 +1,17 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+    }
+}
+
+// ⚠️ 这一行是**必需的**，照抄官方 MDK。ModDevGradle 的若干任务（`downloadAssets`
+// 等）固定要 Java 21 toolchain，而本机只装了 JDK 25——没有 foojay 解析器时
+// 会直接报「Cannot find a Java installation ... matching languageVersion=21，
+// Toolchain download repositories have not been configured」。
+// 有它之后 Gradle 会自动把缺的 JDK 下到 ~/.gradle/jdks/。
+// ⚠️ 这只是**开发环境**的需求；模组本身仍然目标 Java 25。
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'netherlink-neoforge'
